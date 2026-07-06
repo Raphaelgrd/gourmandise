@@ -15,10 +15,10 @@
     Row Level Security. Ne mets JAMAIS la clé "service_role" ici.)
    ====================================================================== */
 // ⚠️ Nouvelle base Supabase dédiée à Gourmandise — colle l'URL du projet ici.
-const SUPABASE_URL = "https://phivuelmhlvgwimgevgc.supabase.co";
+const SUPABASE_URL = "https://VOTRE-PROJET.supabase.co";
 // ⚠️ Colle ici la clé « anon public » (PAS la clé service_role !).
 // Supabase → Project Settings → API → Project API keys → « anon public ».
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXZ1ZWxtaGx2Z3dpbWdldmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTY3NTIsImV4cCI6MjA5ODg5Mjc1Mn0.S32t-iiqcht2rvBCWk39addUh_BfJlBPj_WdyZ5RO20";
+const SUPABASE_ANON_KEY = "VOTRE_CLE_ANON";
 </script>
 <style>
 :root{
@@ -537,6 +537,9 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 .tk-act button:hover{border-color:var(--ink);color:var(--ink)}
 .tk-act button.ok{color:var(--termine);border-color:var(--termine)}
 .tk-act button.ok:hover{background:rgba(31,138,91,.08)}
+.tk-tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--border);border-radius:10px;padding:3px;width:fit-content;margin-bottom:4px}
+.tk-tabs button{padding:5px 13px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--muted);transition:.12s}
+.tk-tabs button.on{background:var(--ink);color:#fff}
 
 /* ---------- Messagerie ---------- */
 .msg{display:flex;height:calc(100vh - 62px);overflow:hidden}
@@ -816,6 +819,27 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
       <span class="spacer"></span>
       <button onclick="closeGroupModal()" style="font-size:13px;font-weight:600;color:var(--muted);padding:8px 12px;border-radius:9px">Annuler</button>
       <button class="crm-new" onclick="saveGroupModal()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal kanban -->
+<div class="crmscrim" id="kanbanScrim" onclick="if(event.target===this)closeKanbanModal()">
+  <div class="crmdlg" style="max-width:400px">
+    <div class="crmdlg-h">
+      <h3 id="kbDlgTitle">Nouveau kanban</h3>
+      <button class="x" onclick="closeKanbanModal()">×</button>
+    </div>
+    <div class="crmdlg-b">
+      <label class="fld"><span>Nom du kanban</span><input id="kbName" type="text" placeholder="Ex : Réseaux sociaux"></label>
+      <div class="fld"><span>Clients / membres assignés</span><div id="kbMembers" class="pj-members"></div></div>
+      <p class="hc-note" style="margin:0">L'équipe voit tous les kanbans. Les clients ne voient que ceux où ils sont cochés ici.</p>
+    </div>
+    <div class="crmdlg-f">
+      <button class="cp-del" id="kbDel" onclick="deleteKanbanModal()" style="display:none">Supprimer</button>
+      <span class="spacer"></span>
+      <button onclick="closeKanbanModal()" style="font-size:13px;font-weight:600;color:var(--muted);padding:8px 12px;border-radius:9px">Annuler</button>
+      <button class="crm-new" onclick="saveKanbanModal()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -1251,7 +1275,7 @@ const ALL_COL_IDS=['backlog','prochainement','encours','bloquant','check','termi
 const COL_NAME={backlog:'Backlog',prochainement:'À faire prochainement',encours:'En cours',bloquant:'Bloquant',check:'À check',termine:'Terminé'};
 function hexRgba(hex,a){const h=hex.replace('#','');const n=parseInt(h,16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
 const DEFAULT_CATS=[
-  {id:'percer',name:'Percer'},
+  {id:'contenu',name:'Contenu'},
   {id:'call',name:'Call'},
   {id:'strategie',name:'Stratégie'},
   {id:'design',name:'Design'},
@@ -1261,7 +1285,7 @@ const DEFAULT_CATS=[
   {id:'admin',name:'Administratif'},
   {id:'repos',name:'Repos'},
 ];
-const DEFAULT_THEME={percer:'#ED8A22',call:'#DD3E73',strategie:'#C9A21E',design:'#D9682C',dev:'#7D54B0',acq:'#3B74C4',perso:'#2E9E5B',admin:'#6E6E76',repos:'#8B8B95'};
+const DEFAULT_THEME={contenu:'#ED8A22',call:'#DD3E73',strategie:'#C9A21E',design:'#D9682C',dev:'#7D54B0',acq:'#3B74C4',perso:'#2E9E5B',admin:'#6E6E76',repos:'#8B8B95'};
 function catById(id){ return (state.categories||[]).find(c=>c.id===id); }
 function catColor(catId, ownerId){ const m=memberById(ownerId||me); const th=(m&&m.themes)||DEFAULT_THEME; return th[catId]||DEFAULT_THEME[catId]||'#8B8B95'; }
 const PALETTE = ['#FF4D2E','#4F73B0','#1F8A5B','#9333EA','#E8920B','#0EA5A4','#DB2777','#475569'];
@@ -1343,10 +1367,11 @@ let draft = {urg:'prioritaire', en:'haute', cal:'strategie', people:[]};
 let draftKind = 'board';        // 'board' (Notion) ou 'cal' (Calendrier) — deux entités séparées
 let activeUsers = new Set();   // utilisateurs affichés en plus de moi
 let activeCats = new Set();     // catégories affichées dans le calendrier
-let activeProject = null;      // null = tous les projets, sinon id du projet filtré
+let activeKanban = null;       // null = tous les kanbans (équipe), sinon id du kanban filtré
 let boardPrioView = false;      // false = kanban normal, true = vue par priorités
-let editingProject = null;      // id du projet en cours d'édition dans le modal
-let projMembersDraft = [];      // membres partagés en cours d'édition dans le modal projet
+let editingKanban = null;       // id du kanban en cours d'édition dans le modal
+let kanbanMembersDraft = [];    // membres assignés en cours d'édition dans le modal kanban
+let ticketArchiveView = false;  // false = demandes en cours, true = archives
 
 const $ = s => document.querySelector(s);
 const initials = n => n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -1360,7 +1385,7 @@ function seedState(){
     members:[],   // les membres = les comptes ; ils apparaissent dès qu'une personne se connecte
     categories: DEFAULT_CATS.map(c=>({...c})),
     tasks:[
-      {id:uid(),kind:'board',title:'Bienvenue sur Gourmandise 👋',desc:'Ton espace : missions, planning, messagerie. Clique sur une carte pour l\'ouvrir.',col:'backlog',urg:'prioritaire',en:'haute',cal:'percer',people:[],date:'',time:'',dur:60,rec:'none',visibleClient:true},
+      {id:uid(),kind:'board',title:'Bienvenue sur Gourmandise 👋',desc:'Ton espace : missions, planning, messagerie. Clique sur une carte pour l\'ouvrir.',col:'backlog',urg:'prioritaire',en:'haute',cal:'contenu',people:[],date:'',time:'',dur:60,rec:'none',visibleClient:true},
       {id:uid(),kind:'board',title:'Shooting photo — menu de printemps',desc:'',col:'prochainement',urg:'prioritaire',en:'haute',cal:'design',people:[],date:'',time:'',dur:90,rec:'none',visibleClient:true},
       {id:uid(),kind:'board',title:'Planifier les posts Instagram de la semaine',desc:'',col:'encours',urg:'prioritaire',en:'haute',cal:'acq',people:[],date:'',time:'',dur:60,rec:'none',visibleClient:false},
       {id:uid(),kind:'board',title:'Montage réel « coulisses cuisine »',desc:'',col:'check',urg:'accessoire',en:'basse',cal:'design',people:[],date:'',time:'',dur:60,rec:'none',visibleClient:false},
@@ -1401,7 +1426,11 @@ function ensureState(){
   if(!state.clients) state.clients=[];     // CRM : fiches clients
   if(!state.deals) state.deals=[];         // CRM : opportunités / pipeline
   if(!state.crm) state.crm={goal:50000};   // CRM : configuration (objectif de CA)
-  if(!state.projects) state.projects=[];   // (hérité de PERCERR, non utilisé ici)
+  if(!state.kanbans) state.kanbans=[];     // Kanbans (tableaux de missions) ; membres = qui peut le voir
+  if(!state.kanbans.length) state.kanbans.push({id:'k-'+uid(), name:'Réseaux sociaux', members:[]});
+  state.kanbans.forEach(k=>{ if(!Array.isArray(k.members)) k.members=[]; });
+  const defKanban = state.kanbans[0].id;
+  state.tasks.forEach(t=>{ if(t.kind==='board' && !t.kanbanId) t.kanbanId=defKanban; });   // missions existantes → 1er kanban
   if(!state.channels) state.channels=[];   // Messagerie : salons & groupes (le « Général » est implicite)
   if(!state.messages) state.messages=[];   // Messagerie : messages {id,chan,from,text,at,readBy}
   if(!state.tickets) state.tickets=[];     // Nouvelles demandes des clients
@@ -1413,6 +1442,10 @@ function ensureState(){
   // migration : l'ancienne catégorie « divers » devient « repos »
   state.categories.forEach(c=>{ if(c.id==='divers'){ c.id='repos'; if(c.name==='Divers') c.name='Repos'; } });
   state.tasks.forEach(t=>{ if(t.cal==='divers') t.cal='repos'; });
+  // migration : l'ancienne catégorie « percer » (héritée de PERCERR) devient « contenu »
+  state.categories.forEach(c=>{ if(c.id==='percer'){ c.id='contenu'; if(c.name==='Percer') c.name='Contenu'; } });
+  state.tasks.forEach(t=>{ if(t.cal==='percer') t.cal='contenu'; });
+  state.members.forEach(m=>{ if(m.themes && m.themes.percer!==undefined && m.themes.contenu===undefined){ m.themes.contenu=m.themes.percer; } });
   state.members.forEach(m=>{ if(m.themes && m.themes.divers!==undefined && m.themes.repos===undefined){ m.themes.repos=m.themes.divers; } });
   // séparation tableau / calendrier : les tâches existantes deviennent des éléments « tableau »
   state.tasks.forEach(t=>{ if(!t.kind) t.kind='board'; if(!t.files) t.files=[]; });
@@ -1577,11 +1610,12 @@ function avStack(ids){
 const URG_COLOR={urgent:'var(--urgent)',prioritaire:'var(--prioritaire)',accessoire:'var(--accessoire)'};
 function cardHTML(t){
   const cal=catById(t.cal);
-  // personne (avatars + noms)
+  // personne (avatars + noms) — masqué pour le client (il ne voit pas qui travaille dessus)
   const names=t.people.map(id=>{const m=memberById(id);return m?`<span class="av sm" style="background:${m.color}">${initials(m.name)}</span><span class="pn">${esc(m.name)}</span>`:''}).join('');
-  const personRow = t.people.length
-    ? `<div class="crow person">${names}</div>`
-    : `<div class="crow person empty">Non assignée</div>`;
+  const personRow = iAmClient() ? ''
+    : (t.people.length
+      ? `<div class="crow person">${names}</div>`
+      : `<div class="crow person empty">Non assignée</div>`);
   const calRow = cal ? `<div class="crow"><span class="chip" style="background:${hexRgba(catColor(t.cal),0.16)};color:${catColor(t.cal)}">${esc(cal.name)}</span></div>` : '';
   const impRow = t.urg ? `<div class="crow"><span class="chip" style="background:${URG_COLOR[t.urg]};color:#fff">${capit(t.urg)}</span></div>` : '';
   const enRow = t.en==='haute'
@@ -1663,26 +1697,46 @@ function activeList(){ return state.members.filter(m=>activeUsers.has(m.id)).sor
 function colHeaderStyle(color){ return `color:${color}`; }
 function colBodyStyle(color){ return ''; }
 
+/* ---- kanbans : le client ne voit que ceux où il est assigné ---- */
+function kanbansAll(){ return state.kanbans||[]; }
+function kanbanById(id){ return kanbansAll().find(k=>k.id===id); }
+function canSeeKanban(k){ return !!k && (!iAmClient() || (k.members||[]).includes(me)); }
+function visibleKanbans(){ return kanbansAll().filter(canSeeKanban); }
+function canEditBoard(){ return !iAmClient(); }        // le client est en lecture seule sur les missions
 function buildColumns(){
   const cols=[];
   COLS_BEFORE.forEach(c=>cols.push({key:c.id, col:c.id, name:c.name, color:c.color}));
-  activeList().forEach(m=>{
-    cols.push({key:'encours-'+m.id, col:'encours', owner:m.id,
-      name:`En cours · ${m.name}`, color:m.color});
-  });
+  if(iAmClient()){
+    // le client ne voit pas qui travaille : une seule colonne « En cours »
+    cols.push({key:'encours', col:'encours', name:'En cours', color:'#E8920B'});
+  }else{
+    activeList().forEach(m=>{
+      cols.push({key:'encours-'+m.id, col:'encours', owner:m.id, name:`En cours · ${m.name}`, color:m.color});
+    });
+  }
   COLS_AFTER.forEach(c=>cols.push({key:c.id, col:c.id, name:c.name, color:c.color}));
   return cols;
 }
-// le client ne voit que les missions marquées « visible client »
-function clientCanSee(t){ return !iAmClient() || t.visibleClient===true; }
-function canEditBoard(){ return !iAmClient(); }        // le client est en lecture seule sur les missions
 function tasksForColumn(c){
-  const base = state.tasks.filter(t=>t.kind==='board' && t.col===c.col && t.cal!=='repos' && clientCanSee(t));
-  if(c.col==='encours') return sortTasks(base.filter(t=>isVisible(t) && t.people.includes(c.owner)));
+  let base = state.tasks.filter(t=>t.kind==='board' && t.col===c.col && t.cal!=='repos');
+  if(activeKanban) base = base.filter(t=>(t.kanbanId||null)===activeKanban);
+  if(iAmClient()) return sortTasks(base);                                  // client : toutes les missions du kanban
+  if(c.col==='encours' && c.owner) return sortTasks(base.filter(t=>isVisible(t) && t.people.includes(c.owner)));
   return sortTasks(base.filter(t=>isVisible(t)));
 }
 
 function renderBoard(){
+  // s'assurer d'un kanban valide
+  const vis=visibleKanbans();
+  if(iAmClient()){
+    if(!vis.length){
+      renderBoardBar();
+      const w=$('#boardView'); w.className='';
+      w.innerHTML=`<div class="gate-card"><div class="gate-emoji">📋</div><h2>Aucun kanban partagé</h2><p>Tu n'as pas encore été ajouté·e à un kanban.<br>Ton contact chez Gourmandise peut t'y ajouter.</p></div>`;
+      return;
+    }
+    if(!activeKanban || !vis.some(k=>k.id===activeKanban)) activeKanban=vis[0].id;
+  }else if(activeKanban && !kanbanById(activeKanban)){ activeKanban=null; }
   renderBoardBar();
   if(boardPrioView){ renderBoardPrio(); return; }
   const canAdd=canEditBoard();
@@ -1712,7 +1766,9 @@ const PRIO_COLS=[
 ];
 function renderBoardPrio(){
   const canAdd=canEditBoard();
-  const base = state.tasks.filter(t=> t.kind==='board' && t.cal!=='repos' && clientCanSee(t) && isVisible(t));
+  let base = state.tasks.filter(t=> t.kind==='board' && t.cal!=='repos');
+  if(activeKanban) base = base.filter(t=>(t.kanbanId||null)===activeKanban);
+  if(!iAmClient()) base = base.filter(isVisible);       // le client voit toutes les missions du kanban
   const wrap=$('#boardView'); wrap.className='board';
   wrap.innerHTML = PRIO_COLS.map(pc=>{
     const items = sortTasks(base.filter(t=>pc.id==='accessoire' ? (!t.urg||t.urg==='accessoire') : t.urg===pc.id));
@@ -1752,24 +1808,77 @@ function wirePrioDnD(){
   });
 }
 
-/* ---------- barre Notion : filtre (gauche) + vue Kanban/Priorités + tri (droite) ---------- */
+/* ---------- barre Notion : kanban + filtre + vue Kanban/Priorités + tri ---------- */
 function renderBoardBar(){
+  const admin=iAmAdmin(), client=iAmClient();
+  const ks=visibleKanbans();
+  // le client n'a pas de vue « Tous les kanbans » ni le filtre « Voir » (il ne voit pas les personnes)
+  const opts=(client?'':`<option value="">Tous les kanbans</option>`)
+    + ks.map(k=>`<option value="${k.id}"${activeKanban===k.id?' selected':''}>${esc(k.name)}</option>`).join('');
+  const peopleFilter = client ? '' : `<span class="filter-lbl">Voir</span><div class="filterbar" id="filterBar"></div>`;
   $('#sortBar').innerHTML = `
-    <span class="filter-lbl">Voir</span>
-    <div class="filterbar" id="filterBar"></div>
+    ${peopleFilter}
     <div class="sb-right">
       <div class="board-subview-tog">
         <button class="${!boardPrioView?'on':''}" onclick="setBoardView('kanban')">Kanban</button>
         <button class="${boardPrioView?'on':''}" onclick="setBoardView('prio')">Priorités</button>
       </div>
+      <select class="proj-sel" onchange="setKanban(this.value)">${opts}</select>
+      ${admin?`<button class="proj-new" onclick="openKanbanModal(null)">+ Kanban</button>`:''}
+      ${admin&&activeKanban?`<button class="proj-edit" onclick="openKanbanModal('${activeKanban}')">✎</button>`:''}
       <div class="sorttool" id="sortTool"></div>
     </div>`;
-  renderPeopleFilter('#filterBar');
+  if(!client) renderPeopleFilter('#filterBar');
   renderSortTool();
 }
+function setKanban(id){ activeKanban = id||null; boardPrioView=false; renderBoard(); }
 function setBoardView(v){
   boardPrioView = v==='prio';
   renderBoard();
+}
+
+/* ---------- kanbans : création / édition (admins) ---------- */
+function openKanbanModal(id){
+  if(!iAmAdmin()) return;
+  editingKanban = id||null;
+  const k = editingKanban ? kanbanById(editingKanban) : null;
+  $('#kbDlgTitle').textContent = k ? 'Modifier le kanban' : 'Nouveau kanban';
+  $('#kbName').value = k ? k.name : '';
+  kanbanMembersDraft = k ? [...(k.members||[])] : [];
+  renderKanbanMembers();
+  $('#kbDel').style.display = k ? '' : 'none';
+  $('#kanbanScrim').classList.add('open');
+  setTimeout(()=>$('#kbName').focus(), 50);
+}
+function renderKanbanMembers(){
+  const host=$('#kbMembers'); if(!host) return;
+  const cands = state.members.filter(m=>memberRole(m.id)!=='admin');   // les admins & l'équipe voient tous les kanbans
+  if(!cands.length){ host.innerHTML='<div class="pm-empty">Aucun membre à assigner pour l\'instant.</div>'; return; }
+  host.innerHTML = cands.map(m=>{
+    const on=kanbanMembersDraft.includes(m.id);
+    return `<button type="button" class="pm-row ${on?'on':''}" onclick="toggleKanbanMember('${m.id}')">
+      <span class="av sm" style="background:${m.color}">${initials(m.name)}</span>
+      <span class="pm-nm">${esc(m.name)}<span class="pm-role">${roleLabel(memberRole(m.id))}</span></span>
+      <span class="pm-check">${on?'✓':'+'}</span></button>`;
+  }).join('');
+}
+function toggleKanbanMember(id){ kanbanMembersDraft = kanbanMembersDraft.includes(id)?kanbanMembersDraft.filter(x=>x!==id):[...kanbanMembersDraft,id]; renderKanbanMembers(); }
+function closeKanbanModal(){ $('#kanbanScrim').classList.remove('open'); }
+function saveKanbanModal(){
+  if(!iAmAdmin()) return;
+  const name=$('#kbName').value.trim(); if(!name) return alert('Donne un nom au kanban.');
+  if(editingKanban){ const k=kanbanById(editingKanban); if(k){ k.name=name; k.members=[...kanbanMembersDraft]; } }
+  else { const id='k-'+uid(); state.kanbans.push({id, name, members:[...kanbanMembersDraft]}); activeKanban=id; }
+  save(); closeKanbanModal(); renderBoard();
+}
+function deleteKanbanModal(){
+  if(!iAmAdmin() || !editingKanban) return;
+  if(kanbansAll().length<=1) return alert('Impossible de supprimer le dernier kanban.');
+  if(!confirm('Supprimer ce kanban et toutes ses missions ?')) return;
+  state.tasks = state.tasks.filter(t=>!(t.kind==='board' && t.kanbanId===editingKanban));
+  state.kanbans = state.kanbans.filter(k=>k.id!==editingKanban);
+  if(activeKanban===editingKanban) activeKanban=null;
+  save(); closeKanbanModal(); renderBoard();
 }
 
 function renderPeopleFilter(sel){
@@ -2234,15 +2343,8 @@ function onColChange(){ $('#blockField').style.display = $('#fCol').value==='blo
 function onRecChange(){ $('#recDaysField').style.display = $('#fRec').value==='custom' ? '' : 'none'; }
 function toggleRecDay(i){ draft.recDays = draft.recDays.includes(i) ? draft.recDays.filter(x=>x!==i) : [...draft.recDays,i].sort(); renderRecDays(); }
 function renderRecDays(){ document.querySelectorAll('#fRecDays button').forEach(b=>b.classList.toggle('on', draft.recDays.includes(+b.dataset.d))); }
-function toggleVisClient(){ draft.visibleClient=!draft.visibleClient; renderVisClient(); }
-function renderVisClient(){
-  const row=$('#visClientRow'); if(!row) return;
-  // uniquement pour les missions (Notion), et masqué pour le client lui-même
-  row.style.display = (draftKind==='board' && !iAmClient()) ? '' : 'none';
-  const b=$('#fVisClient'); if(!b) return;
-  b.classList.toggle('on', !!draft.visibleClient);
-  b.textContent = draft.visibleClient ? '👁 Oui — visible par le client' : 'Non — interne';
-}
+function toggleVisClient(){ /* obsolète : la visibilité client est gérée au niveau du kanban */ }
+function renderVisClient(){ const row=$('#visClientRow'); if(row) row.style.display='none'; }   // masqué : visibilité désormais par kanban
 
 function openModal(id=null, presetCol=null, preset={}){
   editingId = (typeof id==='string') ? id : null;
@@ -2320,7 +2422,8 @@ function commitDraft(scope){
   }else{
     if(!title) return;                                  // pas de tâche vide
     if(!people.length) people=[me];                     // assigné par défaut = le créateur
-    const t={id:uid(),kind:draftKind,dur:draft.dur||60,title,files:[],...fields,people}; state.tasks.push(t); tid=t.id;
+    const kb = draftKind==='board' ? {kanbanId: activeKanban || (kanbansAll()[0]&&kanbansAll()[0].id) || null} : {};
+    const t={id:uid(),kind:draftKind,dur:draft.dur||60,title,files:[],...kb,...fields,people}; state.tasks.push(t); tid=t.id;
   }
   notifyAssign(prevPeople, people, tTitle, tid);
   save();
@@ -2338,7 +2441,8 @@ function ensureTask(){
   const fields={ desc:$('#fDesc').value.trim(), col:$('#fCol').value, urg:draft.urg, en:draft.en, cal:draft.cal,
     people: draft.people.length?[...draft.people]:[me], date:$('#fDate').value, time:$('#fTime').value, rec:$('#fRec').value,
     recDays: $('#fRec').value==='custom'?[...draft.recDays]:[], block: $('#fCol').value==='bloquant'?$('#fBlock').value.trim():'', visibleClient: !!draft.visibleClient };
-  t={ id:uid(), kind:draftKind, dur:draft.dur||60, title:($('#fTitle').value.trim()||'Sans titre'), files:[], ...fields };
+  const _kb = draftKind==='board' ? {kanbanId: activeKanban || (kanbansAll()[0]&&kanbansAll()[0].id) || null} : {};
+  t={ id:uid(), kind:draftKind, dur:draft.dur||60, title:($('#fTitle').value.trim()||'Sans titre'), files:[], ..._kb, ...fields };
   state.tasks.push(t); editingId=t.id; $('#mActions').style.display=''; origSnap=currentSnap();
   return t;
 }
@@ -2646,21 +2750,30 @@ function submitTicket(){
   save(); renderHome(); renderBell(); toast('Demande envoyée ✓');
 }
 function myTicketsHTML(){
-  const mine=(state.tickets||[]).filter(t=>t.from===me);
+  const mine=(state.tickets||[]).filter(t=>t.from===me && !t.archived);
   const rows = mine.length ? mine.map(t=>ticketRowHTML(t,false)).join('') : `<div class="hc-empty">Aucune demande pour l'instant.</div>`;
   return `<div class="home-card"><div class="hc-h"><span>Mes demandes</span></div>${rows}</div>`;
 }
 function ticketInboxHTML(){
-  const tks=(state.tickets||[]).slice().sort((a,b)=> (a.status==='done')-(b.status==='done') || b.at-a.at);
-  const rows = tks.length ? tks.map(t=>ticketRowHTML(t,true)).join('') : `<div class="hc-empty">Aucune demande client pour l'instant.</div>`;
-  const open=(state.tickets||[]).filter(t=>t.status!=='done').length;
-  return `<div class="home-card wide"><div class="hc-h"><span>🎫 Demandes clients</span>${open?`<span class="hc-badge">${open} en cours</span>`:''}</div>${rows}</div>`;
+  const all=(state.tickets||[]);
+  const list = all.filter(t=> ticketArchiveView ? t.archived : !t.archived)
+    .slice().sort((a,b)=> (a.status==='done')-(b.status==='done') || b.at-a.at);
+  const rows = list.length ? list.map(t=>ticketRowHTML(t,true)).join('')
+    : `<div class="hc-empty">${ticketArchiveView?'Aucune demande archivée.':'Aucune demande client pour l\'instant.'}</div>`;
+  const open=all.filter(t=>!t.archived && t.status!=='done').length;
+  const nbArch=all.filter(t=>t.archived).length;
+  const tabs=`<div class="tk-tabs">
+      <button class="${!ticketArchiveView?'on':''}" onclick="setTicketView(false)">En cours</button>
+      <button class="${ticketArchiveView?'on':''}" onclick="setTicketView(true)">Archives${nbArch?` (${nbArch})`:''}</button>
+    </div>`;
+  return `<div class="home-card wide"><div class="hc-h"><span>🎫 Demandes clients</span>${open?`<span class="hc-badge">${open} en cours</span>`:''}</div>${tabs}${rows}</div>`;
 }
 function ticketRowHTML(t, team){
   const from=memberById(t.from); const st=TICKET_ST[t.status]||TICKET_ST.open;
   const actions = team ? `<div class="tk-act">
-      ${t.status!=='progress'&&t.status!=='done'?`<button onclick="setTicket('${t.id}','progress')">Prendre en charge</button>`:''}
-      ${t.status!=='done'?`<button class="ok" onclick="setTicket('${t.id}','done')">Terminé</button>`:`<button onclick="setTicket('${t.id}','open')">Rouvrir</button>`}
+      ${!t.archived && t.status!=='progress' && t.status!=='done'?`<button onclick="setTicket('${t.id}','progress')">Prendre en charge</button>`:''}
+      ${!t.archived && t.status!=='done'?`<button class="ok" onclick="setTicket('${t.id}','done')">Terminé</button>`:''}
+      ${!t.archived?`<button onclick="archiveTicket('${t.id}')">Archiver</button>`:`<button onclick="unarchiveTicket('${t.id}')">Désarchiver</button>`}
     </div>` : '';
   return `<div class="tk-row">
     <span class="av sm" style="background:${from?from.color:'#999'}">${from?initials(from.name):'?'}</span>
@@ -2669,6 +2782,7 @@ function ticketRowHTML(t, team){
       <div class="tk-m">${from?esc(from.name):'?'} · ${timeAgo(t.at)}</div></div>
     ${actions}</div>`;
 }
+function setTicketView(a){ ticketArchiveView=a; renderHome(); }
 function setTicket(id, status){
   if(iAmClient()) return;
   const t=(state.tickets||[]).find(x=>x.id===id); if(!t) return;
@@ -2676,6 +2790,8 @@ function setTicket(id, status){
   if(status!=='open' && t.from) pushNotif(t.from, `Ta demande « ${t.title} » est ${TICKET_ST[status].n.toLowerCase()}`, null);
   save(); renderHome(); renderBell();
 }
+function archiveTicket(id){ if(iAmClient())return; const t=(state.tickets||[]).find(x=>x.id===id); if(!t)return; t.archived=true; save(); renderHome(); }
+function unarchiveTicket(id){ if(iAmClient())return; const t=(state.tickets||[]).find(x=>x.id===id); if(!t)return; t.archived=false; save(); renderHome(); }
 function teamStatsHTML(){
   const missions=state.tasks.filter(t=>t.kind==='board'&&t.col!=='termine').length;
   const openTk=(state.tickets||[]).filter(t=>t.status!=='done').length;
@@ -2705,8 +2821,11 @@ function chanLabel(chan){
   if(chan.startsWith('dm:')){ const other=chan.slice(3).split('_').find(x=>x!==me); const m=memberById(other); return m?m.name:'Message direct'; }
   return '';
 }
+// un client ne voit pas les autres personnes ayant le rôle client
+function memberVisibleToMe(id){ return !iAmClient() || id===me || memberRole(id)!=='client'; }
 function myChannels(){
-  const list=[{id:'general'}];
+  const list=[];
+  if(!iAmClient()) list.push({id:'general'});   // le client n'a pas le salon général (isolation entre clients)
   (state.channels||[]).forEach(g=>{ if(g.members.includes(me)||iAmAdmin()) list.push({id:'g:'+g.id}); });
   const dmset=new Set();
   (state.messages||[]).forEach(msg=>{ if(msg.chan.startsWith('dm:') && chanMembers(msg.chan).includes(me)) dmset.add(msg.chan); });
@@ -2722,34 +2841,48 @@ function markChanRead(chan){
   chanMessages(chan).forEach(m=>{ m.readBy=m.readBy||[]; if(m.from!==me && !m.readBy.includes(me)){ m.readBy.push(me); changed=true; } });
   if(changed) save();
 }
+function chanAccessible(chan){
+  if(!chan) return false;
+  if(chan==='general') return !iAmClient();
+  if(chan.startsWith('g:')){ const g=(state.channels||[]).find(c=>c.id===chan.slice(2)); return !!g && (g.members.includes(me)||iAmAdmin()); }
+  if(chan.startsWith('dm:')){ const ids=chanMembers(chan); return ids.includes(me) && ids.every(id=>id===me||memberVisibleToMe(id)); }
+  return false;
+}
 function renderMsg(){
   const host=$('#msgView'); host.className='msg';
   const prevInp=$('#msgInput'); const draftText=prevInp?prevInp.value:''; const hadFocus=prevInp&&document.activeElement===prevInp;
-  markChanRead(activeChan);
+  // salon actif valide pour ce rôle (le client n'a pas le Général, etc.)
+  if(!chanAccessible(activeChan)){ const first=myChannels()[0]; activeChan = first ? first.id : ''; }
+  if(activeChan) markChanRead(activeChan);
   const chans=myChannels();
   const list = chans.map(c=>{
     const un=chanUnread(c.id); const last=chanMessages(c.id).slice(-1)[0];
     return `<button class="chan ${c.id===activeChan?'on':''}" onclick="openChan('${c.id}')">
       <span class="chan-row"><span class="chan-nm">${esc(chanLabel(c.id))}</span>${un?`<span class="chan-badge">${un}</span>`:''}</span>
       ${last?`<span class="chan-last">${esc((last.text||'').slice(0,30))}</span>`:''}</button>`;
-  }).join('');
-  const dmList = state.members.filter(m=>m.id!==me).map(m=>`<button class="chan dm ${dmId(me,m.id)===activeChan?'on':''}" onclick="openChan('${dmId(me,m.id)}')"><span class="av sm" style="background:${m.color}">${initials(m.name)}</span><span class="chan-nm">${esc(m.name)}</span><span class="chan-role">${roleLabel(memberRole(m.id))}</span></button>`).join('');
+  }).join('') || `<div class="pm-empty" style="padding:8px">Aucun salon — démarre un message direct ci-dessous.</div>`;
+  const dmList = state.members.filter(m=>m.id!==me && memberVisibleToMe(m.id)).map(m=>`<button class="chan dm ${dmId(me,m.id)===activeChan?'on':''}" onclick="openChan('${dmId(me,m.id)}')"><span class="av sm" style="background:${m.color}">${initials(m.name)}</span><span class="chan-nm">${esc(m.name)}</span><span class="chan-role">${roleLabel(memberRole(m.id))}</span></button>`).join('');
   const grpBtn = canCreateGroup()?`<button class="chan-new" onclick="openGroupModal(null)">+ Nouveau groupe</button>`:'';
-  const msgs = chanMessages(activeChan).map(msgBubbleHTML).join('') || `<div class="msg-empty">Aucun message. Écris le premier 👇</div>`;
-  const editBtn = (activeChan.startsWith('g:') && canCreateGroup())?`<button class="chan-edit" onclick="openGroupModal('${activeChan.slice(2)}')" title="Modifier le groupe">✎</button>`:'';
-  host.innerHTML = `
-    <div class="msg-side">
-      <div class="msg-side-h">Salons</div>${list}${grpBtn}
-      <div class="msg-side-h" style="margin-top:14px">Messages directs</div>${dmList}
-    </div>
-    <div class="msg-main">
-      <div class="msg-top"><span class="msg-title">${esc(chanLabel(activeChan))}</span>${editBtn}<span class="msg-members">${chanMembers(activeChan).length} membre(s)</span></div>
+  let mainPane;
+  if(!activeChan){
+    mainPane = `<div class="msg-main"><div class="msg-scroll"><div class="msg-empty">Choisis une conversation à gauche pour commencer 💬</div></div></div>`;
+  }else{
+    const msgs = chanMessages(activeChan).map(msgBubbleHTML).join('') || `<div class="msg-empty">Aucun message. Écris le premier 👇</div>`;
+    const editBtn = (activeChan.startsWith('g:') && canCreateGroup())?`<button class="chan-edit" onclick="openGroupModal('${activeChan.slice(2)}')" title="Modifier le groupe">✎</button>`:'';
+    mainPane = `<div class="msg-main">
+      <div class="msg-top"><span class="msg-title">${esc(chanLabel(activeChan))}</span>${editBtn}<span class="msg-members">${chanMembers(activeChan).filter(memberVisibleToMe).length} membre(s)</span></div>
       <div class="msg-scroll" id="msgScroll">${msgs}</div>
       <form class="msg-compose" onsubmit="return sendMsg(event)">
         <input id="msgInput" type="text" placeholder="Écris un message…" autocomplete="off">
         <button type="submit" class="msg-send">Envoyer</button>
       </form>
     </div>`;
+  }
+  host.innerHTML = `
+    <div class="msg-side">
+      <div class="msg-side-h">Salons</div>${list}${grpBtn}
+      <div class="msg-side-h" style="margin-top:14px">Messages directs</div>${dmList}
+    </div>${mainPane}`;
   const sc=$('#msgScroll'); if(sc) sc.scrollTop=sc.scrollHeight;
   const ni=$('#msgInput'); if(ni && draftText){ ni.value=draftText; if(hadFocus){ ni.focus(); ni.setSelectionRange(draftText.length,draftText.length); } }
   updateMsgBadge();
@@ -2983,10 +3116,10 @@ function crmDashboardHTML(){
   ].map(k=>`<div class="kpi ${k.a?'accent':''}"><div class="kpi-v">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
   const rtb=`<div class="card-crm rtb">
-    <div class="cc-h"><span>🇧🇷 Road to Brazil</span><button class="cc-edit" onclick="editGoal()">Objectif ✎</button></div>
+    <div class="cc-h"><span>🎯 Objectif de CA</span><button class="cc-edit" onclick="editGoal()">Objectif ✎</button></div>
     <div class="donut-wrap">${donutChart([{value:pct,color:'var(--accent)'},{value:1-pct,color:'var(--border)'}],{size:200,stroke:24})}
       <div class="donut-center"><div class="dc-pct">${Math.round(pct*100)}%</div><div class="dc-sub">${fmtMoney(enc)}<br>/ ${fmtMoney(goal)}</div></div></div>
-    <div class="rtb-foot">${goal>enc?`Plus que <b>${fmtMoney(goal-enc)}</b> pour atteindre l'objectif ✈️`:`Objectif atteint ! 🎉`}</div></div>`;
+    <div class="rtb-foot">${goal>enc?`Plus que <b>${fmtMoney(goal-enc)}</b> pour atteindre l'objectif 🚀`:`Objectif atteint ! 🎉`}</div></div>`;
 
   const byCl=caByClient();
   const repart=`<div class="card-crm"><div class="cc-h"><span>Répartition du CA par client</span></div>
@@ -3010,7 +3143,7 @@ function signedListHTML(){
 }
 function markPaid(id){ const d=dealById(id); if(!d)return; d.stage='encaisse'; d.paidAt=todayISO(); if(!d.signedAt)d.signedAt=todayISO(); save(); renderCrm(); toast('Encaissé 🎉'); }
 function editGoal(){
-  const v=prompt('Objectif de CA — Road to Brazil (en €) :', caGoal()||50000);
+  const v=prompt('Objectif de chiffre d\'affaires (en €) :', caGoal()||50000);
   if(v===null)return; const n=parseInt(String(v).replace(/[^0-9]/g,''),10);
   if(!isNaN(n)){ state.crm=state.crm||{}; state.crm.goal=n; save(); renderCrm(); }
 }
