@@ -15,10 +15,10 @@
     Row Level Security. Ne mets JAMAIS la clé "service_role" ici.)
    ====================================================================== */
 // ⚠️ Nouvelle base Supabase dédiée à Gourmandise — colle l'URL du projet ici.
-const SUPABASE_URL = "https://phivuelmhlvgwimgevgc.supabase.co";
+const SUPABASE_URL = "https://VOTRE-PROJET.supabase.co";
 // ⚠️ Colle ici la clé « anon public » (PAS la clé service_role !).
 // Supabase → Project Settings → API → Project API keys → « anon public ».
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXZ1ZWxtaGx2Z3dpbWdldmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTY3NTIsImV4cCI6MjA5ODg5Mjc1Mn0.S32t-iiqcht2rvBCWk39addUh_BfJlBPj_WdyZ5RO20";
+const SUPABASE_ANON_KEY = "VOTRE_CLE_ANON";
 </script>
 <style>
 :root{
@@ -493,12 +493,15 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 .pm-empty{font-size:12.5px;color:var(--faint);padding:12px;text-align:center;line-height:1.5}
 .pm-sec{font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding:10px 4px 5px}
 .pm-sec:first-child{padding-top:2px}
-/* gestion d'équipe : sections */
-.team-sec{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding:14px 2px 6px;border-bottom:1px solid var(--border)}
-.team-sec:first-child{padding-top:2px}
-.team-sec-n{background:var(--paper);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--muted)}
-.team-sec.pending{color:var(--accent)}
-.team-sec.pending .team-sec-n{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+/* gestion d'équipe : onglets */
+.team-tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--border);border-radius:11px;padding:4px;margin:14px 0 6px}
+.team-tabs button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:8px 6px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);transition:.12s}
+.team-tabs button.on{background:var(--ink);color:#fff}
+.team-tabs button .tt-n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--border);color:var(--muted);font-size:11px;font-weight:700;display:grid;place-items:center}
+.team-tabs button.on .tt-n{background:rgba(255,255,255,.22);color:#fff}
+.team-tabs button.pend:not(.on){color:var(--accent)}
+.team-tabs button.pend:not(.on) .tt-n{background:var(--accent);color:#fff}
+.team-list{max-height:44vh;overflow-y:auto}
 /* écran « compte en attente » */
 .gate-card{max-width:440px;margin:60px auto;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:40px 32px;text-align:center;box-shadow:var(--shadow)}
 .gate-emoji{font-size:44px;margin-bottom:14px}
@@ -1552,17 +1555,24 @@ function teamRowHTML(m){
     <div class="team-act">${ctrl}${rm}</div>
   </div>`;
 }
+let teamTab='team';
+function setTeamTab(t){ teamTab=t; renderTeam(); }
 function renderTeam(){
   const team    = state.members.filter(m=>TEAM_ROLES.includes(memberRole(m.id)));
   const clients = state.members.filter(m=>memberRole(m.id)==='client');
   const pending = state.members.filter(m=>memberRole(m.id)==='none');
-  const section=(title, arr, cls)=>`
-    <div class="team-sec ${cls||''}">${title}${arr.length?` <span class="team-sec-n">${arr.length}</span>`:''}</div>
-    ${arr.length ? arr.map(teamRowHTML).join('') : '<div class="pm-empty">—</div>'}`;
-  $('#teamBody').innerHTML =
-      section('Équipe', team)
-    + section('Clients', clients)
-    + section('Sans rôle — en attente', pending, pending.length?'pending':'');
+  const tab=(id,label,arr,pend)=>`<button class="${teamTab===id?'on':''}${pend&&arr.length?' pend':''}" onclick="setTeamTab('${id}')">${label}<span class="tt-n">${arr.length}</span></button>`;
+  const cur = teamTab==='clients'?clients : teamTab==='pending'?pending : team;
+  const emptyMsg = teamTab==='pending' ? "Personne en attente. Les nouveaux comptes apparaissent ici après inscription."
+                 : teamTab==='clients' ? "Aucun client pour l'instant."
+                 : "Aucun membre d'équipe.";
+  $('#teamBody').innerHTML = `
+    <div class="team-tabs">
+      ${tab('team','Équipe',team)}
+      ${tab('clients','Clients',clients)}
+      ${tab('pending','Sans rôle',pending,true)}
+    </div>
+    <div class="team-list">${ cur.length ? cur.map(teamRowHTML).join('') : `<div class="pm-empty">${emptyMsg}</div>` }</div>`;
 }
 function setMemberRole(id, role){
   if(!iAmAdmin()) return;
