@@ -15,10 +15,10 @@
     Row Level Security. Ne mets JAMAIS la clé "service_role" ici.)
    ====================================================================== */
 // ⚠️ Nouvelle base Supabase dédiée à Gourmandise — colle l'URL du projet ici.
-const SUPABASE_URL = "https://phivuelmhlvgwimgevgc.supabase.co";
+const SUPABASE_URL = "https://VOTRE-PROJET.supabase.co";
 // ⚠️ Colle ici la clé « anon public » (PAS la clé service_role !).
 // Supabase → Project Settings → API → Project API keys → « anon public ».
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXZ1ZWxtaGx2Z3dpbWdldmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTY3NTIsImV4cCI6MjA5ODg5Mjc1Mn0.S32t-iiqcht2rvBCWk39addUh_BfJlBPj_WdyZ5RO20";
+const SUPABASE_ANON_KEY = "VOTRE_CLE_ANON";
 </script>
 <style>
 :root{
@@ -491,6 +491,14 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 .pm-role{font-size:11px;font-weight:500;color:var(--faint)}
 .pm-check{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-weight:700;color:var(--accent);font-size:14px}
 .pm-empty{font-size:12.5px;color:var(--faint);padding:12px;text-align:center;line-height:1.5}
+.pm-sec{font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding:10px 4px 5px}
+.pm-sec:first-child{padding-top:2px}
+/* gestion d'équipe : sections */
+.team-sec{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding:14px 2px 6px;border-bottom:1px solid var(--border)}
+.team-sec:first-child{padding-top:2px}
+.team-sec-n{background:var(--paper);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--muted)}
+.team-sec.pending{color:var(--accent)}
+.team-sec.pending .team-sec-n{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 /* écran « compte en attente » */
 .gate-card{max-width:440px;margin:60px auto;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:40px 32px;text-align:center;box-shadow:var(--shadow)}
 .gate-emoji{font-size:44px;margin-bottom:14px}
@@ -1036,7 +1044,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 <div class="teamscrim" id="teamScrim" onclick="if(event.target===this)closeTeam()">
   <div class="teamdlg">
     <h3>Gestion de l'équipe</h3>
-    <p class="sub">Attribue un rôle à chaque membre. <b>Aucun accès</b> : rien. <b>Client</b> : uniquement les projets liés. <b>Team PRC</b> : calendrier + projets liés. <b>Admin</b> : tout + création de projets.</p>
+    <p class="sub">Attribue un rôle à chaque membre. <b>Aucun accès</b> : rien. <b>Client</b> : uniquement ses kanbans. <b>Équipier</b> : notion + messagerie. <b>Manager</b> : + planning. <b>Admin</b> : tout + création de kanbans.</p>
     <div id="teamBody"></div>
     <button class="team-close" onclick="closeTeam()">Fermer</button>
   </div>
@@ -1465,6 +1473,11 @@ async function ensureMember(){
   const isSup = email===SUPER_ADMIN;
   // nouveau compte : aucun accès par défaut (sauf le super-admin) — un admin devra attribuer un rôle
   state.members.push({ id:me, name, color, email, admin:isSup, role:isSup?'admin':'none', themes:{...DEFAULT_THEME} });
+  // notifier les admins qu'un nouveau compte est en attente de rôle
+  if(!isSup){
+    state.members.filter(x=>x.id!==me && memberRole(x.id)==='admin')
+      .forEach(x=>pushNotif(x.id, `🆕 ${name} vient de s'inscrire — attribue-lui un rôle dans la gestion d'équipe`, null));
+  }
   await save();
 }
 async function boot(){
@@ -1521,25 +1534,35 @@ function applyAccess(){
 /* ============ administration : panneau Équipe ============ */
 function openTeam(){ if(!iAmAdmin()) return; renderTeam(); $('#teamScrim').classList.add('open'); }
 function closeTeam(){ $('#teamScrim').classList.remove('open'); }
+const TEAM_ROLES=['admin','manager','equipier'];
+function teamRowHTML(m){
+  const sup=(m.email||'').toLowerCase()===SUPER_ADMIN, mine=m.id===me, role=memberRole(m.id);
+  const ctrl = sup
+    ? '<span class="team-badge">super-admin</span>'
+    : `<select class="role-sel" onchange="setMemberRole('${m.id}',this.value)">
+         ${['none','client','equipier','manager','admin'].map(r=>`<option value="${r}"${role===r?' selected':''}>${ROLES[r]}</option>`).join('')}
+       </select>`;
+  const rm = (!sup && !mine) ? `<button class="danger" onclick="removeMember('${m.id}')">Retirer</button>` : '';
+  return `<div class="team-row">
+    <span class="av" style="background:${m.color}">${initials(m.name)}</span>
+    <div class="team-info">
+      <div class="team-nm">${esc(m.name)}${mine?' <span style="color:var(--faint);font-weight:500;font-size:11px">(moi)</span>':''}</div>
+      <div class="team-em">${esc(m.email||'—')}</div>
+    </div>
+    <div class="team-act">${ctrl}${rm}</div>
+  </div>`;
+}
 function renderTeam(){
-  const rows = state.members.map(m=>{
-    const sup=(m.email||'').toLowerCase()===SUPER_ADMIN, mine=m.id===me, role=memberRole(m.id);
-    const ctrl = sup
-      ? '<span class="team-badge">super-admin</span>'
-      : `<select class="role-sel" onchange="setMemberRole('${m.id}',this.value)">
-           ${['none','client','equipier','manager','admin'].map(r=>`<option value="${r}"${role===r?' selected':''}>${ROLES[r]}</option>`).join('')}
-         </select>`;
-    const rm = (!sup && !mine) ? `<button class="danger" onclick="removeMember('${m.id}')">Retirer</button>` : '';
-    return `<div class="team-row">
-      <span class="av" style="background:${m.color}">${initials(m.name)}</span>
-      <div class="team-info">
-        <div class="team-nm">${esc(m.name)}${mine?' <span style="color:var(--faint);font-weight:500;font-size:11px">(moi)</span>':''}</div>
-        <div class="team-em">${esc(m.email||'—')}</div>
-      </div>
-      <div class="team-act">${ctrl}${rm}</div>
-    </div>`;
-  }).join('');
-  $('#teamBody').innerHTML = rows || '<p class="sub">Aucun membre pour le moment.</p>';
+  const team    = state.members.filter(m=>TEAM_ROLES.includes(memberRole(m.id)));
+  const clients = state.members.filter(m=>memberRole(m.id)==='client');
+  const pending = state.members.filter(m=>memberRole(m.id)==='none');
+  const section=(title, arr, cls)=>`
+    <div class="team-sec ${cls||''}">${title}${arr.length?` <span class="team-sec-n">${arr.length}</span>`:''}</div>
+    ${arr.length ? arr.map(teamRowHTML).join('') : '<div class="pm-empty">—</div>'}`;
+  $('#teamBody').innerHTML =
+      section('Équipe', team)
+    + section('Clients', clients)
+    + section('Sans rôle — en attente', pending, pending.length?'pending':'');
 }
 function setMemberRole(id, role){
   if(!iAmAdmin()) return;
@@ -1629,6 +1652,10 @@ function cardHTML(t){
     : '';
   const nf=(t.files||[]).length;
   const filesRow = nf ? `<div class="crow"><span class="chip" style="background:var(--paper);color:var(--muted)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.48-8.49" stroke-linecap="round" stroke-linejoin="round"/></svg>${nf}</span></div>` : '';
+  // le client ne voit que le titre + la catégorie (ni importance/énergie/fichiers/blocage internes)
+  if(iAmClient()){
+    return `<div class="card" data-id="${t.id}" onclick="openModal('${t.id}')"><p class="ttl">${esc(t.title)}</p>${calRow}</div>`;
+  }
   return `<div class="card" draggable="true" data-id="${t.id}" onclick="openModal('${t.id}')" oncontextmenu="return onCardContext(event,'${t.id}')">
     <p class="ttl">${esc(t.title)}</p>
     ${blockRow}${personRow}${calRow}${impRow}${enRow}${filesRow}
@@ -1850,17 +1877,24 @@ function openKanbanModal(id){
   $('#kanbanScrim').classList.add('open');
   setTimeout(()=>$('#kbName').focus(), 50);
 }
+// picker de membres, séparé en sections Équipe / Clients / (Sans rôle)
+function pickerRowHTML(m, on, toggleFn){
+  return `<button type="button" class="pm-row ${on?'on':''}" onclick="${toggleFn}('${m.id}')">
+    <span class="av sm" style="background:${m.color}">${initials(m.name)}</span>
+    <span class="pm-nm">${esc(m.name)}${m.id===me?' (moi)':''}<span class="pm-role">${roleLabel(memberRole(m.id))}</span></span>
+    <span class="pm-check">${on?'✓':'+'}</span></button>`;
+}
+function renderPickerSections(hostSel, cands, draft, toggleFn){
+  const host=$(hostSel); if(!host) return;
+  if(!cands.length){ host.innerHTML='<div class="pm-empty">Aucun membre pour l\'instant.</div>'; return; }
+  const team    = cands.filter(m=>TEAM_ROLES.includes(memberRole(m.id)));
+  const clients = cands.filter(m=>memberRole(m.id)==='client');
+  const none    = cands.filter(m=>memberRole(m.id)==='none');
+  const sec=(title,arr)=> arr.length ? `<div class="pm-sec">${title}</div>`+arr.map(m=>pickerRowHTML(m, draft.includes(m.id), toggleFn)).join('') : '';
+  host.innerHTML = sec('Équipe',team)+sec('Clients',clients)+sec('Sans rôle',none);
+}
 function renderKanbanMembers(){
-  const host=$('#kbMembers'); if(!host) return;
-  const cands = state.members.filter(m=>memberRole(m.id)!=='admin');   // les admins & l'équipe voient tous les kanbans
-  if(!cands.length){ host.innerHTML='<div class="pm-empty">Aucun membre à assigner pour l\'instant.</div>'; return; }
-  host.innerHTML = cands.map(m=>{
-    const on=kanbanMembersDraft.includes(m.id);
-    return `<button type="button" class="pm-row ${on?'on':''}" onclick="toggleKanbanMember('${m.id}')">
-      <span class="av sm" style="background:${m.color}">${initials(m.name)}</span>
-      <span class="pm-nm">${esc(m.name)}<span class="pm-role">${roleLabel(memberRole(m.id))}</span></span>
-      <span class="pm-check">${on?'✓':'+'}</span></button>`;
-  }).join('');
+  renderPickerSections('#kbMembers', state.members.filter(m=>memberRole(m.id)!=='admin'), kanbanMembersDraft, 'toggleKanbanMember');
 }
 function toggleKanbanMember(id){ kanbanMembersDraft = kanbanMembersDraft.includes(id)?kanbanMembersDraft.filter(x=>x!==id):[...kanbanMembersDraft,id]; renderKanbanMembers(); }
 function closeKanbanModal(){ $('#kanbanScrim').classList.remove('open'); }
@@ -2350,11 +2384,13 @@ function openModal(id=null, presetCol=null, preset={}){
   editingId = (typeof id==='string') ? id : null;
   editingOccDate = (editingId && preset.occDate) ? preset.occDate : null;
   fillColSelect();
+  document.querySelectorAll('#scrim .peek .prop').forEach(p=>{ p.style.display=''; });   // repart d'une fiche complète (les gestionnaires re-masquent ensuite)
+  const clientPeek = iAmClient();     // le client voit une fiche ultra-simplifiée (titre + avancement)
   if(editingId){
     const t=state.tasks.find(x=>x.id===editingId);
     const owner=t.people[0];
     // ouverte depuis le calendrier + appartient à quelqu'un d'autre → lecture seule (sauf admin)
-    modalReadOnly = !!(preset.occDate && owner && owner!==me) && !iAmAdmin();
+    modalReadOnly = clientPeek || (!!(preset.occDate && owner && owner!==me) && !iAmAdmin());
     $('#mActions').style.display='';
     $('#fTitle').value=t.title; $('#fDesc').value=t.desc||'';
     $('#fDate').value=t.date||''; $('#fTime').value=t.time||'';
@@ -2373,9 +2409,18 @@ function openModal(id=null, presetCol=null, preset={}){
   onColChange(); onRecChange(); renderRecDays(); updateDiversRows(); renderVisClient();
   renderProps(); renderFiles();
   applyReadOnly();
+  applyClientPeek(clientPeek);
   origSnap = editingId ? currentSnap() : null;   // référence pour détecter les changements (récurrence)
   $('#scrim').classList.add('open');
   if(!modalReadOnly) setTimeout(()=>$('#fTitle').focus(),50);
+}
+// fiche client : ne montrer que le titre + l'état d'avancement (ni personnes, ni détails, ni fichiers, ni actions)
+function applyClientPeek(on){
+  const peek=document.querySelector('#scrim .peek'); if(!peek) return;
+  if(!on){ return; }
+  peek.querySelectorAll('.prop').forEach(p=>{ p.style.display = (p.id==='rowEtat') ? '' : 'none'; });
+  $('#mActions').style.display='none';
+  const ro=$('#roNote'); if(ro) ro.style.display='none';
 }
 function applyReadOnly(){
   const peek=document.querySelector('#scrim .peek'); if(!peek) return;
@@ -2861,7 +2906,12 @@ function renderMsg(){
       <span class="chan-row"><span class="chan-nm">${esc(chanLabel(c.id))}</span>${un?`<span class="chan-badge">${un}</span>`:''}</span>
       ${last?`<span class="chan-last">${esc((last.text||'').slice(0,30))}</span>`:''}</button>`;
   }).join('') || `<div class="pm-empty" style="padding:8px">Aucun salon — démarre un message direct ci-dessous.</div>`;
-  const dmList = state.members.filter(m=>m.id!==me && memberVisibleToMe(m.id)).map(m=>`<button class="chan dm ${dmId(me,m.id)===activeChan?'on':''}" onclick="openChan('${dmId(me,m.id)}')"><span class="av sm" style="background:${m.color}">${initials(m.name)}</span><span class="chan-nm">${esc(m.name)}</span><span class="chan-role">${roleLabel(memberRole(m.id))}</span></button>`).join('');
+  const dmCands = state.members.filter(m=>m.id!==me && memberVisibleToMe(m.id));
+  const dmRow = m => `<button class="chan dm ${dmId(me,m.id)===activeChan?'on':''}" onclick="openChan('${dmId(me,m.id)}')"><span class="av sm" style="background:${m.color}">${initials(m.name)}</span><span class="chan-nm">${esc(m.name)}</span><span class="chan-role">${roleLabel(memberRole(m.id))}</span></button>`;
+  const dmTeam = dmCands.filter(m=>memberRole(m.id)!=='client');
+  const dmCli  = dmCands.filter(m=>memberRole(m.id)==='client');
+  const dmSection = (title,arr)=> arr.length ? `<div class="msg-side-h" style="margin-top:14px">${title}</div>`+arr.map(dmRow).join('') : '';
+  const dmBlocks = dmSection('Équipe',dmTeam)+dmSection('Clients',dmCli);
   const grpBtn = canCreateGroup()?`<button class="chan-new" onclick="openGroupModal(null)">+ Nouveau groupe</button>`:'';
   let mainPane;
   if(!activeChan){
@@ -2881,7 +2931,7 @@ function renderMsg(){
   host.innerHTML = `
     <div class="msg-side">
       <div class="msg-side-h">Salons</div>${list}${grpBtn}
-      <div class="msg-side-h" style="margin-top:14px">Messages directs</div>${dmList}
+      ${dmBlocks || '<div class="msg-side-h" style="margin-top:14px">Messages directs</div><div class="pm-empty" style="padding:8px">Aucun contact.</div>'}
     </div>${mainPane}`;
   const sc=$('#msgScroll'); if(sc) sc.scrollTop=sc.scrollHeight;
   const ni=$('#msgInput'); if(ni && draftText){ ni.value=draftText; if(hadFocus){ ni.focus(); ni.setSelectionRange(draftText.length,draftText.length); } }
@@ -2921,14 +2971,7 @@ function openGroupModal(id){
   setTimeout(()=>$('#grpName').focus(),50);
 }
 function renderGrpMembers(){
-  const host=$('#grpMembers'); if(!host) return;
-  host.innerHTML = state.members.map(m=>{
-    const on=grpMembersDraft.includes(m.id); const meTag=m.id===me?' (moi)':'';
-    return `<button type="button" class="pm-row ${on?'on':''}" onclick="toggleGrpMember('${m.id}')">
-      <span class="av sm" style="background:${m.color}">${initials(m.name)}</span>
-      <span class="pm-nm">${esc(m.name)}${meTag}<span class="pm-role">${roleLabel(memberRole(m.id))}</span></span>
-      <span class="pm-check">${on?'✓':'+'}</span></button>`;
-  }).join('');
+  renderPickerSections('#grpMembers', state.members, grpMembersDraft, 'toggleGrpMember');
 }
 function toggleGrpMember(id){ grpMembersDraft = grpMembersDraft.includes(id)?grpMembersDraft.filter(x=>x!==id):[...grpMembersDraft,id]; renderGrpMembers(); }
 function closeGroupModal(){ $('#groupScrim').classList.remove('open'); }
