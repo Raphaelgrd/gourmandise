@@ -14,10 +14,9 @@
    (La clé "anon" est faite pour être publique : elle est protégée par la
     Row Level Security. Ne mets JAMAIS la clé "service_role" ici.)
    ====================================================================== */
-// ⚠️ Nouvelle base Supabase dédiée à Gourmandise — colle l'URL du projet ici.
+// Base Supabase dédiée à Gourmandise.
 const SUPABASE_URL = "https://phivuelmhlvgwimgevgc.supabase.co";
-// ⚠️ Colle ici la clé « anon public » (PAS la clé service_role !).
-// Supabase → Project Settings → API → Project API keys → « anon public ».
+// Clé « anon public » (sûre côté client : protégée par la Row Level Security).
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoaXZ1ZWxtaGx2Z3dpbWdldmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTY3NTIsImV4cCI6MjA5ODg5Mjc1Mn0.S32t-iiqcht2rvBCWk39addUh_BfJlBPj_WdyZ5RO20";
 </script>
 <style>
@@ -42,7 +41,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
   padding:12px 20px;background:rgba(251,250,247,.86);backdrop-filter:blur(10px);
   border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:baseline;gap:9px;font-family:'Space Grotesk',sans-serif}
-.brand-logo{height:30px;width:auto;border-radius:7px;align-self:center}
+.brand-logo{height:34px;width:auto;align-self:center;display:block}
 .brand .mark{font-size:21px;font-weight:700;letter-spacing:-.02em}
 .brand .mark b{color:var(--accent)}
 .brand .sub{font-size:11.5px;color:var(--faint);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
@@ -787,7 +786,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 </div>
 
 <div class="topbar">
-  <div class="brand"><img class="brand-logo" src="logo.png" alt="Gourmandise" onerror="this.remove()"><span class="wordmark">gourm<b>andise</b></span></div>
+  <div class="brand"><img class="brand-logo" src="gourmandise.png" alt="Gourmandise" onerror="this.style.display='none';this.nextElementSibling.style.display=''"><span class="wordmark" style="display:none">gourm<b>andise</b></span></div>
   <div class="viewtog">
     <button id="vHome" class="on" onclick="setView('home')">Accueil</button>
     <button id="vBoard" onclick="setView('board')">Notion</button>
